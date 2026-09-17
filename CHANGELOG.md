@@ -7,9 +7,7 @@ verbatim as the GitHub Release body, so a version with an empty section refuses 
 
 ## [Unreleased]
 
-`nvim.version` is `0.0.0` until the first release is cut. It is not a version anything
-ships; it is the absence of one, and `scripts/tag-release.sh` is what turns it into a
-version by resolving the commit that changed it.
+## [v1.0.0] - 2026-09-17
 
 ### Added
 
@@ -84,4 +82,5 @@ version by resolving the commit that changed it.
   ([dotfiles-core#1123](https://github.com/dotgibson/dotfiles-core/issues/1123)), and
   `NVIM-SPLIT-PROPOSAL.md` §6 is explicit that the split moves the tree and does not edit it.
 
-[Unreleased]: https://github.com/dotgibson/dotfiles-nvim/commits/main
+[Unreleased]: https://github.com/dotgibson/dotfiles-nvim/compare/v1.0.0...HEAD
+[v1.0.0]: https://github.com/dotgibson/dotfiles-nvim/releases/tag/v1.0.0
