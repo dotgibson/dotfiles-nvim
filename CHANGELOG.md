@@ -7,7 +7,9 @@ verbatim as the GitHub Release body, so a version with an empty section refuses 
 
 ## [Unreleased]
 
-## [v1.0.0]
+`nvim.version` is `0.0.0` until the first release is cut. It is not a version anything
+ships; it is the absence of one, and `scripts/tag-release.sh` is what turns it into a
+version by resolving the commit that changed it.
 
 ### Added
 
@@ -63,6 +65,14 @@ verbatim as the GitHub Release body, so a version with an empty section refuses 
   byte-identical first sync has landed — until then a red here would be a gate arguing with
   a non-negotiable.
 
+### Fixed
+
+- **The release entry point shipped `100644`, and the gate had no reason to notice.**
+  `make publish` died with `Permission denied` before reading a single guard.
+  `scripts/audit/05-shape.sh` asserted one direction of the exec-bit rule — every *sourced*
+  fragment is non-executable — and nothing asserted the other. Neither the audit nor the
+  tests execute `tag-release.sh`, so a full green CI run said nothing. §0a closes it.
+
 ### Known gaps
 
 - `pr-link-check` is not ported. Core's version delegates to a 213-line policy script; every
@@ -74,5 +84,4 @@ verbatim as the GitHub Release body, so a version with an empty section refuses 
   ([dotfiles-core#1123](https://github.com/dotgibson/dotfiles-core/issues/1123)), and
   `NVIM-SPLIT-PROPOSAL.md` §6 is explicit that the split moves the tree and does not edit it.
 
-[Unreleased]: https://github.com/dotgibson/dotfiles-nvim/compare/v1.0.0...HEAD
-[v1.0.0]: https://github.com/dotgibson/dotfiles-nvim/releases/tag/v1.0.0
+[Unreleased]: https://github.com/dotgibson/dotfiles-nvim/commits/main
