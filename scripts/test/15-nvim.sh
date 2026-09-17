@@ -1,10 +1,10 @@
 # scripts/test/15-nvim.sh
 # Neovim config load, lockfile, event callbacks, LSP registry (headless)
 #
-# A SOURCED FRAGMENT of scripts/test-core.sh — not a standalone script. It runs in the
+# A SOURCED FRAGMENT of scripts/test-nvim.sh — not a standalone script. It runs in the
 # dispatcher's shell and uses its state: PASS/SKIP/FAIL, $SANDBOX, $HERE, the SCOPE_*
 # flags, and the pass/skip/fail/hdr/have helpers from scripts/lib/common.sh. See the
-# header of scripts/test-core.sh for the contract.
+# header of scripts/test-nvim.sh for the contract.
 
 # Fragments embed zsh code as single-quoted literals on purpose: the `$…` inside them
 # must be expanded by the zsh CHILD, not by this bash parent. SC2016 is therefore a
