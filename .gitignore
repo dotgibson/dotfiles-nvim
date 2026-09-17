@@ -1,0 +1,15 @@
+# dotfiles-nvim/.gitignore — this repo is editor config only; never machine state.
+*.log
+*.bak
+.DS_Store
+
+# NOT nvim/lazy-lock.json. It is the POINT of this repo — the committed plugin pins every
+# consumer resolves against, moved only by scripts/update-nvim-plugins.sh under review.
+# A blanket `*lock*` rule would hide it, which is why there is not one.
+
+# lazy.nvim writes its working lockfile into $XDG_STATE_HOME, never into the config tree
+# (#465), so nothing under nvim/ should ever appear untracked. If something does, that is
+# a finding — do not add a rule here to make it quiet.
+
+# The gate's throwaway sandboxes live under $TMPDIR and are removed by the dispatchers'
+# EXIT traps; nothing lands in the checkout.

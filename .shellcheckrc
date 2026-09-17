@@ -1,0 +1,21 @@
+# .shellcheckrc — repo-wide ShellCheck config so author-time, CI, and editor (bashls /
+# nvim) all lint identically. Ported from dotfiles-core's, which explains the reasoning at
+# length; the three settings below are the ones this repo needs.
+#
+# File-SPECIFIC suppressions stay inline, next to the code that needs them — they are not
+# global truths and must not be hidden here. scripts/test/15-nvim.sh's SC2016 is the
+# example: `$…` inside its single-quoted Lua literals is expanded by the nvim CHILD, not
+# by the bash parent.
+
+# Follow `source`/`.`-d files, and resolve a sourced path relative to the script being
+# checked — this is what lets `source "${BASH_SOURCE[0]%/*}/lib/common.sh"` resolve in an
+# editor without every file needing an inline `# shellcheck source=` directive.
+external-sources=true
+source-path=SCRIPTDIR
+source-path=scripts
+
+# Lint as bash. Load-bearing here, not merely tidy: every runnable script is
+# `#!/usr/bin/env bash`, and the SOURCED libraries — scripts/lib/common.sh and every
+# fragment under scripts/{audit,test}/ — deliberately carry no shebang, so without this
+# ShellCheck cannot tell what dialect they are and reports the whole gate as unknown-shell.
+shell=bash

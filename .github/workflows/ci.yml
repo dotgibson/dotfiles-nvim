@@ -1,0 +1,104 @@
+name: ci
+
+# THE gate — `make audit`, which is scripts/audit-nvim.sh, which is the same thing
+# `make audit` runs on a laptop. This workflow installs the pinned toolchain and then
+# hands off entirely; there is no gate logic in this YAML, on purpose, because a check
+# that only exists in CI is a check nobody can reproduce before pushing.
+#
+# WHY THIS REPO EXISTS, IN ONE JOB: the audit's §4 installs the committed plugin pins
+# with `:Lazy! restore`, starts the editor for real, and runs `:checkhealth gerrrt`.
+# dotfiles-core could never run that leg on its own cadence — it is the check a
+# lazy-lock.json pin bump most needs and the one it never had
+# (NVIM-SPLIT-PROPOSAL.md §3.3).
+#
+# ONE RUNNER, not Core's ubuntu+macOS matrix. Everything gated here is the editor, and
+# the editor is the same on both: the one OS-shaped thing in the tree is the clipboard
+# provider, and scripts/test/15-nvim.sh already covers its branches with has() stubbed
+# rather than by needing the host. A second runner would double a 10-minute plugin
+# install to re-lint the same Lua.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: github.repository_owner == 'dotgibson'
+    runs-on: ubuntu-latest
+    # The plugin install is the long pole: ~60 git clones, plus treesitter parsers.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Every version literal lives in scripts/tool-versions.env, never in this file.
+      - name: Load pinned tool versions
+        run: grep -E '^[A-Z0-9_]+=' scripts/tool-versions.env >> "$GITHUB_ENV"
+
+      # Neovim, pinned AND SHA-256-verified, from dotfiles-core's shared composite action.
+      # Borrowed rather than copied: it is one definition of "install a verified gate
+      # binary" for the whole org, and a fork here would be a second one to keep in step.
+      # Cross-repo actions resolve by `owner/repo/path@ref` on a public repo.
+      - name: Install neovim (pinned + verified)
+        uses: dotgibson/dotfiles-core/.github/actions/setup-core-tools@v7
+        with:
+          neovim: "true"
+
+      # Cache the luarocks tree so luacheck and its Lua deps are not rebuilt from source
+      # on every run. Keyed on the pinned version, so a bump rotates the key by itself.
+      - name: Cache luacheck (luarocks tree)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.luarocks
+          # `-lua54` busts any tree cached against a now-default Lua 5.5.
+          key: luacheck-${{ runner.os }}-${{ env.LUACHECK_VERSION }}-lua54
+
+      - name: Install luacheck (pinned)
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends luarocks
+          # --local installs under ~/.luarocks (the cached path above).
+          luarocks --local install luacheck "${LUACHECK_VERSION}"
+          echo "$HOME/.luarocks/bin" >> "$GITHUB_PATH"
+
+      # stylua, pinned and verified the same way the composite action does it — inline
+      # because Core's action has no stylua input: Core wired no stylua at all, so this
+      # repo is the first consumer of the pin (scripts/tool-versions.env says why).
+      - name: Install stylua (pinned + verified)
+        run: |
+          set -euo pipefail
+          : "${STYLUA_VERSION:?not loaded — the tool-versions step must run first}"
+          : "${STYLUA_SHA256:?not loaded — the tool-versions step must run first}"
+          f=stylua-linux-x86_64.zip
+          curl -fsSL -o "$f" "https://github.com/JohnnyMorganz/StyLua/releases/download/v${STYLUA_VERSION}/${f}"
+          echo "${STYLUA_SHA256}  ${f}" | sha256sum -c -
+          mkdir -p "$HOME/.local/bin"
+          unzip -oq "$f" -d "$HOME/.local/bin"
+          chmod +x "$HOME/.local/bin/stylua"
+          rm -f "$f"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Tool versions
+        run: |
+          for t in nvim luacheck stylua git; do
+            if command -v "$t" >/dev/null 2>&1; then
+              printf '%-10s %s\n' "$t" "$("$t" --version 2>&1 | head -1)"
+            else
+              printf '%-10s MISSING\n' "$t"
+            fi
+          done
+
+      # --strict: on a runner every gate tool is installed on purpose, so a tool-absent
+      # SKIP means an install step silently did not happen. A gate that skipped itself
+      # green is the one failure mode this whole repo was extracted to stop shipping.
+      - name: make audit (--strict)
+        run: ./scripts/audit-nvim.sh --strict --color always

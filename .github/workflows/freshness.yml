@@ -1,0 +1,127 @@
+name: freshness
+
+# THE PIN-BUMP BOT, moved here from dotfiles-core's freshness.yml (its `nvim-plugins` job,
+# NVIM-SPLIT-PROPOSAL.md §3.2). nvim/lazy-lock.json pins every plugin revision so nothing
+# floats silently onto a host; this rolls those pins forward weekly and OPENS A PR so the
+# bump is reviewable in one click. A pinned-and-forgotten plugin can sit on a known-vuln
+# commit indefinitely. Renovate (the shared org preset, see renovate.json) watches the
+# github-actions ecosystem, not these runtime pins.
+#
+# WHAT IS DIFFERENT NOW THAT IT LIVES HERE — and it is the whole point of the split.
+# In Core a bump was a Core PR, then a Core release, then nine sync PRs, gated by a CI leg
+# that lints the Lua and never starts the editor. Here the PR this bot opens runs ci.yml,
+# which installs the new pins with `:Lazy! restore`, starts nvim for real and runs
+# `:checkhealth gerrrt` — so a plugin whose setup() moved under us fails the bump instead
+# of reaching a host. 30 of the 102 nvim commits in Core's last quarter were this bot
+# (§2.2); every one of them now gets that check.
+#
+# Why it opens the PR as the fleet GitHub App, not GITHUB_TOKEN: GitHub deliberately does
+# NOT run workflows on events created by the default GITHUB_TOKEN (a recursion guard), so a
+# GITHUB_TOKEN-authored PR parks its CI at `action_required` until a human clicks "Approve
+# and run" — which would leave the gate that justifies this repo waiting on a click. The
+# mint needs the App INSTALLED on dotfiles-nvim and the repo added to the org secret's
+# selection list (GITHUB-APP-AUTH.md); until it is, the mint is skipped and we fall back to
+# GITHUB_TOKEN, so the PR still opens and only its CI needs approving.
+#
+# A fixed branch makes it idempotent: a second run force-updates the existing branch and PR
+# rather than stacking duplicates. `mode=check` reports without touching anything.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "pr = roll pins forward and open a PR; check = report only"
+        type: choice
+        options: [pr, check]
+        default: pr
+
+permissions:
+  contents: read
+
+concurrency:
+  # Ref-independent: the bot always force-updates ONE fixed branch, so runs must never
+  # overlap regardless of which ref launched them.
+  group: freshness
+  cancel-in-progress: true
+
+jobs:
+  nvim-plugins:
+    # Fork guard: the scheduled bot runs only on the canonical repo.
+    if: github.repository_owner == 'dotgibson'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      MODE: ${{ github.event.inputs.mode || 'pr' }}
+      BRANCH: automation/freshness-nvim-plugins
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      HAS_APP_KEY: ${{ secrets.FLEET_APP_PRIVATE_KEY != '' }}
+    steps:
+      - name: Mint a scoped installation token (if the App is installed here)
+        id: app
+        if: env.MODE == 'pr' && vars.FLEET_APP_CLIENT_ID != '' && env.HAS_APP_KEY == 'true'
+        continue-on-error: true
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          # client-id rather than app-id, which is deprecated at this pin. The variable
+          # holds the App's Client ID — a different value from its App ID.
+          client-id: ${{ vars.FLEET_APP_CLIENT_ID }}
+          private-key: ${{ secrets.FLEET_APP_PRIVATE_KEY }}
+          # Push the bump branch, open its PR — that is the whole job. Deliberately NOT
+          # workflows: write: a pin bump touches nvim/lazy-lock.json and nothing else, so
+          # if that ever changes the push fails loudly rather than the token having quietly
+          # been able to rewrite CI all along.
+          permission-contents: write
+          permission-pull-requests: write
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true # the bot pushes its branch before opening the PR
+          token: ${{ steps.app.outputs.token || github.token }}
+
+      - name: Load pinned tool versions
+        run: grep -E '^[A-Z0-9_]+=' scripts/tool-versions.env >> "$GITHUB_ENV"
+
+      - name: Install neovim (pinned + verified)
+        uses: dotgibson/dotfiles-core/.github/actions/setup-core-tools@v7
+        with:
+          neovim: "true"
+
+      - name: Check the plugin lock (report only)
+        if: env.MODE == 'check'
+        run: |
+          if ./scripts/update-nvim-plugins.sh --check; then
+            echo "✅ nvim plugin lock current" >> "$GITHUB_STEP_SUMMARY"
+          else
+            { echo "### ⚠️ nvim plugin lock is behind upstream"; echo ""; \
+              echo "Re-run this workflow with mode=pr to refresh it."; } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Refresh the plugin lock and open a PR
+        if: env.MODE == 'pr'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token || github.token }}
+        run: |
+          set -euo pipefail
+          ./scripts/update-nvim-plugins.sh   # apply mode: refreshes nvim/lazy-lock.json
+          if git diff --quiet -- nvim/lazy-lock.json; then
+            echo "✅ nvim plugin lock already current — no PR needed" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git add nvim/lazy-lock.json
+          git commit -m "chore(deps): refresh nvim plugin lock (freshness bot)"
+          git push -f -u origin "$BRANCH"
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
+            gh pr create --head "$BRANCH" --base "$DEFAULT_BRANCH" \
+              --title "chore(deps): refresh nvim plugin lock" \
+              --body "Automated by the freshness bot. \`nvim/lazy-lock.json\` was behind upstream; this refreshes it to current.
+
+          Let ci.yml run: it installs these exact pins with \`:Lazy! restore\`, starts the editor and runs \`:checkhealth gerrrt\`. That is the check this bump did not have while the tree lived in dotfiles-core."
+          fi

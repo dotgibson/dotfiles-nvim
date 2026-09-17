@@ -1,0 +1,71 @@
+name: release
+
+# Turn a pushed vX.Y.Z tag into a GitHub Release whose body is that version's CHANGELOG
+# section. Ported from dotfiles-core's release.yml, minus its notify-web leg.
+#
+# The tag is pushed by scripts/tag-release.sh --publish, which refuses unless origin/main
+# really carries this nvim.version and the section is non-empty — so by the time this runs
+# the two guards below should be redundant. They are here anyway: a tag can be pushed by
+# hand, and a Release built from the wrong section is published and public before anyone
+# reads it.
+#
+# NOTHING FANS OUT ON RELEASE. dotfiles-core bumps its nvim.lock with its NEXT release, at
+# its own pace, never on every one of ours (NVIM-SPLIT-PROPOSAL.md §7(3)) — adopting each
+# editor release as it lands would reimport, through the lock, exactly the churn the split
+# removed. That is why there is no sync-fanout.yml here and no dispatch to Core.
+on:
+  push:
+    tags: ["v[0-9]*.[0-9]*.[0-9]*"] # vX.Y.Z; the SemVer guard below is authoritative
+
+permissions:
+  contents: write # create the GitHub Release
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false # never interrupt a publish mid-flight
+
+jobs:
+  publish:
+    if: github.repository_owner == 'dotgibson'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Publish GitHub Release from the CHANGELOG section
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          ver="${TAG#v}"
+          if ! printf '%s' "$ver" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::tag '$TAG' is not a clean vX.Y.Z release tag"
+            exit 1
+          fi
+          nv="$(tr -d '[:space:]' <nvim.version)"
+          if [ "$nv" != "$ver" ]; then
+            echo "::error::tag '$TAG' != nvim.version '$nv' at the tagged commit"
+            exit 1
+          fi
+          # The SAME awk scripts/tag-release.sh uses, so the two cannot disagree about
+          # where a section starts, where it ends, or what "empty" means.
+          awk -v ver="$ver" '
+            $0 ~ "^## +\\[v?" ver "\\]" { f = 1; next }
+            f && /^## +\[/ { exit }
+            f && NF { p = 1 }
+            f && p { buf[++n] = $0 }
+            END { while (n > 0 && buf[n] ~ /^[[:space:]]*$/) n--; for (i = 1; i <= n; i++) print buf[i] }
+          ' CHANGELOG.md >release-body.md
+          if [ ! -s release-body.md ]; then
+            echo "::error::no CHANGELOG.md section found for $TAG"
+            exit 1
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists — updating notes"
+            gh release edit "$TAG" --notes-file release-body.md
+          else
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes-file release-body.md
+          fi
+          echo "Published release $TAG"

@@ -1,0 +1,15 @@
+# stylua.toml — the Lua formatter's settings for nvim/.
+#
+# NEW IN THIS REPO. dotfiles-core never had one: .editorconfig there says outright that
+# neither shfmt nor stylua is wired into CI or pre-commit, and stylua existed only as a
+# Mason-installed formatter inside nvim/lua/gerrrt/plugins/conform.lua — so 6,404 lines of
+# Lua have never been formatted by anything.
+#
+# These values are NOT a preference; they are the tree's measured near-fixed-point. Tabs,
+# because 89 of the 98 Lua files are tab-indented. 120 columns, because it is where the
+# tree settles: at 120 seven files differ, at 100 twenty-seven do, and past 130 it gets
+# worse again rather than better. Picking the config to match the code — instead of
+# reformatting the code to match a config — is what keeps the stylua leg advisory
+# (scripts/audit/10-lua.sh §1b) small enough to flip to a gate in one reviewable diff.
+indent_type = "Tabs"
+column_width = 120

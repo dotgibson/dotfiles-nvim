@@ -1,0 +1,31 @@
+name: lint
+
+# Thin caller for the reusable shell/actionlint/markdown/secrets gate authored in
+# dotfiles-core (.github/workflows/lint-call.yml) — one definition for the whole org,
+# rather than a ~200-line copy here. The gate's internals (the SHA-256-verified
+# pinned-tool bootstrap, the RETURN-trap discipline check, shfmt-advisory, gitleaks
+# against the fleet's one secret-scanning policy) live there.
+#
+# This repo has no core/ and no extra excludes, so no `with:` is needed.
+#
+# DELIBERATELY UNFILTERED — no `paths-ignore`. A required check that never reports blocks
+# the merge forever, so a docs-only PR would deadlock. The job is cheap and its tools are
+# cached, so running it on a typo costs little next to the deadlock it removes.
+#
+# WHAT IT DOES NOT COVER: Lua. luacheck and stylua are this repo's own business and run
+# in ci.yml, because they need a Lua toolchain the fleet gate has no reason to carry.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    uses: dotgibson/dotfiles-core/.github/workflows/lint-call.yml@v7

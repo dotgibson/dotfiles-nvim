@@ -1,0 +1,8 @@
+# dotfiles-nvim :: theme/palette.toml vendor provenance
+# The dotfiles-core commit this palette was vendored from. scripts/audit/30-theme.sh
+# reads it; see that section for why the palette is vendored here at all.
+source = https://github.com/dotgibson/dotfiles-core.git
+branch = main
+commit = 7c7ad399350ce74964baac0cc7941abad59feaa1
+tag    = v7-4-g7c7ad39
+date   = 2026-09-17
