@@ -1,5 +1,5 @@
 # scripts/audit/05-shape.sh
-# the gate's own layout contract: every fragment is numbered, sourced, tracked, and non-executable
+# the gate's own layout contract: fragments are numbered and sourced, entry points are runnable
 #
 # A SOURCED FRAGMENT of scripts/audit-nvim.sh — not a standalone script. It runs in the
 # dispatcher's shell and uses its state: the PASS/SKIP/FAIL counters, $HERE (already cd'd
@@ -77,6 +77,28 @@ if [[ -z "$_as_unbannered" ]]; then
 else
   fail "gate layout: fragment(s) with no section banner: $_as_unbannered — a gate that names nothing cannot be cited"
 fi
+
+# ── 0a. the RUNNABLE scripts are executable ───────────────────────────────────
+# The other direction of the rule above, and it is not symmetry for its own sake: a
+# dispatcher committed 100644 is a gate nobody can run. `make audit` dies with "Permission
+# denied" before a single section is sourced — which is at least loud — but
+# scripts/tag-release.sh was committed 100644 in this repo's first commit and the omission
+# survived a full green CI run, because nothing on the gate's path executes it. It surfaced
+# only when someone tried to cut a release.
+#
+# So: everything directly under scripts/ has a shebang and is meant to be run; everything
+# under scripts/lib/, scripts/audit/ and scripts/test/ is sourced. Assert both halves.
+_as_notexec=''
+for _as_f in "$HERE"/scripts/*.sh; do
+  [[ -e "$_as_f" ]] || break
+  [[ -x "$_as_f" ]] || _as_notexec="${_as_notexec:+$_as_notexec }scripts/${_as_f##*/}"
+done
+if [[ -z "$_as_notexec" ]]; then
+  pass "gate layout: every runnable script under scripts/ is executable"
+else
+  fail "gate layout: non-executable runnable script(s): $_as_notexec — chmod +x, or it is an entry point nothing can call"
+fi
+unset _as_notexec
 
 # ── 0b. no fragment installs its own EXIT trap ────────────────────────────────
 # `trap … EXIT` REPLACES rather than appends, so a second handler anywhere under
