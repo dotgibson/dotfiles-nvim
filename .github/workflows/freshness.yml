@@ -86,7 +86,7 @@ jobs:
         run: grep -E '^[A-Z0-9_]+=' scripts/tool-versions.env >> "$GITHUB_ENV"
 
       - name: Install neovim (pinned + verified)
-        uses: dotgibson/dotfiles-core/.github/actions/setup-core-tools@v7
+        uses: dotgibson/dotfiles-core/.github/actions/setup-core-tools@1559169c813fa8eed597f6125bfc95ba5658f6c9 # v7.14.0
         with:
           neovim: "true"
 

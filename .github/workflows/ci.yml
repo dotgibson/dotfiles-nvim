@@ -46,9 +46,11 @@ jobs:
       # Neovim, pinned AND SHA-256-verified, from dotfiles-core's shared composite action.
       # Borrowed rather than copied: it is one definition of "install a verified gate
       # binary" for the whole org, and a fork here would be a second one to keep in step.
-      # Cross-repo actions resolve by `owner/repo/path@ref` on a public repo.
+      # Cross-repo actions resolve by `owner/repo/path@ref` on a public repo. The ref is a
+      # SHA and not `@v7`: `sha_pinning_required` rejects a tag-pinned composite action
+      # (only reusable workflows are exempt), so this moves with a Core release by hand.
       - name: Install neovim (pinned + verified)
-        uses: dotgibson/dotfiles-core/.github/actions/setup-core-tools@v7
+        uses: dotgibson/dotfiles-core/.github/actions/setup-core-tools@1559169c813fa8eed597f6125bfc95ba5658f6c9 # v7.14.0
         with:
           neovim: "true"
 
