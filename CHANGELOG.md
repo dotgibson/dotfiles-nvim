@@ -7,6 +7,17 @@ verbatim as the GitHub Release body, so a version with an empty section refuses 
 
 ## [Unreleased]
 
+### Security
+
+- **CI pins Core's `setup-core-tools` action to a commit, so GitHub can enforce SHA pinning
+  here.** `ci.yml` and `freshness.yml` referenced
+  `dotgibson/dotfiles-core/.github/actions/setup-core-tools@v7`. `sha_pinning_required`
+  rejects a tag-pinned composite action; only reusable workflows are exempt, which is why
+  `lint.yml`'s `lint-call.yml@v7` stays as it is. Both now pin Core v7.14.0's commit, which
+  unblocks turning the setting on for this repo, as it already is for every
+  Core-vendoring repo (dotgibson/dotfiles-core#1226). The cost is a manual bump when Core
+  releases a change to the action (#8).
+
 ## [v1.0.0] - 2026-09-17
 
 ### Added
