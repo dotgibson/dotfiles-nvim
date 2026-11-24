@@ -7,6 +7,17 @@ verbatim as the GitHub Release body, so a version with an empty section refuses 
 
 ## [Unreleased]
 
+### Fixed
+
+- **The freshness bot fails when it cannot mint the fleet App token, instead of opening a
+  refresh PR whose CI never starts.** The org's `FLEET_APP_PRIVATE_KEY` was never shared
+  with this repo, so the mint step skipped, the PR step fell back to `GITHUB_TOKEN`, and
+  GitHub — which starts no workflow for a PR that token opens — never delivered `ci.yml`'s
+  six required contexts. The run stayed green and #16 sat `BLOCKED` until it was closed and
+  reopened by hand. With the key shared, the bot's PRs are App-authored again (#17); the new
+  last step reds the run if that ever stops, naming whether the key or the App install is
+  missing, so a missing install or key shows up as a red run rather than another stuck PR.
+
 ### Security
 
 - **CI pins Core's `setup-core-tools` action to a commit, so GitHub can enforce SHA pinning
